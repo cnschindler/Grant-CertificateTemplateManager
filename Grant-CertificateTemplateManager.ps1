@@ -25,7 +25,7 @@ Param
 
 # Set logging variables to control the initial logging behavior
 $Script:LoggingEnabled = $true
-$Script:FileLoggingEnabled = $false
+$Script:FileLoggingEnabled = $true
 $Script:ConsoleLoggingEnabled = $true
 
 function Write-LogFile
@@ -99,8 +99,6 @@ function Write-LogFile
     }
 }
 
-# Disable the default behavior of the Active Directory module to load the default drive, which can cause issues in some environments
-$Env:ADPS_LoadDefaultDrive = 0
 # Import the Active Directory module if not already imported
 if (-not (Get-Module -Name ActiveDirectory -ErrorAction SilentlyContinue))
 {
@@ -117,6 +115,8 @@ if (-not (Get-Module -Name ActiveDirectory -ErrorAction SilentlyContinue))
     }
 }
 
+Get-PSDrive
+Get-Module
 function Grant-ADObjectPermissions
 {
     param (
@@ -126,11 +126,26 @@ function Grant-ADObjectPermissions
         [System.DirectoryServices.ActiveDirectoryAccessRule]$Rule,
         [Parameter(Mandatory=$true)]
         [System.Security.Principal.NTAccount]$Principal,
-        [switch]$SetOwner
+        [switch]$SetOwner,
+        [Parameter(Mandatory=$true)]
+        [string]$AccessType,
+        [Parameter(Mandatory=$true)]
+        [string]$ObjectType
     )
 
     # Retrieve the current ACL of the specified AD object
-    $Acl = Get-Acl $Path
+    Try
+    {
+        $Acl = Get-Acl $Path -ErrorAction Stop
+        Write-LogFile -Message "Successfully retrieved ACL for '$Path'."
+    }
+
+    Catch
+    {
+        Write-LogFile -Message "Failed to retrieve ACL for '$Path'." -ErrorInfo $_
+        Exit
+
+    }
 
     if ($SetOwner)
     {
@@ -154,18 +169,18 @@ function Grant-ADObjectPermissions
     else
     {
         # Add access rule to current ACL
-        Write-LogFile -Message "Adding access rule for '$($Principal.Value)' to '$Path'."
+        Write-LogFile -Message "Adding $($AccessType) to $($ObjectType) objects access rule for '$($Principal.Value)' to '$Path'."
         [void]$Acl.AddAccessRule($Rule)
         # Write back modified ACL
         Try
         {
             Set-Acl -Path $Path -AclObject $Acl -ErrorAction Stop
-            Write-LogFile -Message "Successfully added access rule for '$($Principal.Value)' to '$Path'."
+            Write-LogFile -Message "Successfully added $($AccessType) to $($ObjectType) objects access rule for '$($Principal.Value)' to '$Path'."
         }
 
         Catch
         {
-            Write-LogFile -Message "Failed to add access rule for '$($Principal.Value)' to '$Path'." -ErrorInfo $_
+            Write-LogFile -Message "Failed to add $($AccessType) to $($ObjectType) objects access rule for '$($Principal.Value)' to '$Path'." -ErrorInfo $_
             Exit
         }
     }
@@ -232,34 +247,34 @@ $PkiTemplPath = "AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services
 Write-LogFile -Message "Certificate Templates container path is '$PkiTemplPath'."
 # Retrieve current ACL of 'certificte templates' container
 # $PkiTemplAcl = Get-Acl $PkiTemplPath
-Write-LogFile -Message "Retrieved current ACL of 'Certificate Templates' container."
+# Write-LogFile -Message "Retrieved current ACL of 'Certificate Templates' container."
 # Define path to 'OID' container in current forest
 $PkiEntOidPath = "AD:\CN=OID,CN=Public Key Services,CN=Services,$ConfigNC"
 Write-LogFile -Message "OID container path is '$PkiEntOidPath'."
 # Retrieve current ACL of 'OID' container
 # $PkiEntOidAcl = Get-Acl $PkiEntOidPath
-Write-LogFile -Message "Retrieved current ACL of 'OID' container."
+# Write-LogFile -Message "Retrieved current ACL of 'OID' container."
 # Retrieve all Templates from the 'Certificate Templates' container
-$pkiTemplates = Get-AdObject -LDAPFilter '(objectClass=pKICertificateTemplate)' -SearchBase $PkiTemplPath -Server $DomainController
+$pkiTemplates = Get-ChildItem $($PkiTemplPath)
 Write-LogFile -Message "Retrieved $($pkiTemplates.Count) certificate templates from 'Certificate Templates' container."
 # Retrieve all OIDs from the 'OID' container
-$pkiOids = Get-AdObject -LDAPFilter '(objectClass=msPKI-Enterprise-Oid)' -SearchBase $PkiEntOidPath -Server $DomainController
+$pkiOids = Get-ChildItem $($PkiEntOidPath)
 Write-LogFile -Message "Retrieved $($pkiOids.Count) OIDs from 'OID' container."
 # Create the ACL Security Principal for the delegated group
-$ACLSEcurityPrincipal = [System.Security.Principal.NTAccount]::new($($Domain.NetBIOSName), $($Group.SamAccountName))
+$ACLSecurityPrincipal = [System.Security.Principal.NTAccount]::new($($Domain.NetBIOSName), $($Group.SamAccountName))
 Write-LogFile -Message "Created ACL Security Principal for group '$($Group.SamAccountName)' in domain '$($Domain.NetBIOSName)'."
 
 # Create generic Full Control ACL Rule for AD objects
 $GenericFCRule = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
-    $ACLSEcurityPrincipal,
-    [System.DirectoryServices.ActiveDirectoryRights]::FullControl,
+    $ACLSecurityPrincipal,
+    [System.DirectoryServices.ActiveDirectoryRights]::GenericAll,
     [System.Security.AccessControl.AccessControlType]::Allow,
-    [System.DirectoryServices.ActiveDirectorySecurityInheritance]::All
+    [System.DirectoryServices.ActiveDirectorySecurityInheritance]::Descendents
 )
 
 # Create ACL Rules for 'pkiCertificateTemplate' object creation/deletion
 $PkiTemplCreateDeleteRule = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
-    $ACLSEcurityPrincipal,
+    $ACLSecurityPrincipal,
     ([System.DirectoryServices.ActiveDirectoryRights]::CreateChild -bor
     [System.DirectoryServices.ActiveDirectoryRights]::DeleteChild),
     [System.Security.AccessControl.AccessControlType]::Allow,
@@ -268,12 +283,12 @@ $PkiTemplCreateDeleteRule = New-Object System.DirectoryServices.ActiveDirectoryA
 )
 
 # Add access rules to existing 'pkiCertificateTemplate' ACL
-Grant-ADObjectPermissions -Path $PkiTemplPath -Rule $PkiTemplCreateDeleteRule -Principal $ACLSEecurityPrincipal
-Grant-ADObjectPermissions -Path $PkiTemplPath -Rule $GenericFCRule -Principal $ACLSEecurityPrincipal
+Grant-ADObjectPermissions -Path $PkiTemplPath -Rule $PkiTemplCreateDeleteRule -Principal $ACLSecurityPrincipal -AccessType "Create/Delete" -ObjectType "pkiCertificateTemplate"
+Grant-ADObjectPermissions -Path $PkiTemplPath -Rule $GenericFCRule -Principal $ACLSecurityPrincipal -AccessType "Full Control" -ObjectType "pkiCertificateTemplate"
 
 # Create ACL Rules for 'msPKI-Enterprise-Oid' object creation/deletion
 $PkiEntOIDCreateDeleteRule = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
-    $ACLSEcurityPrincipal,
+    $ACLSecurityPrincipal,
     ([System.DirectoryServices.ActiveDirectoryRights]::CreateChild -bor
     [System.DirectoryServices.ActiveDirectoryRights]::DeleteChild),
     [System.Security.AccessControl.AccessControlType]::Allow,
@@ -282,19 +297,48 @@ $PkiEntOIDCreateDeleteRule = New-Object System.DirectoryServices.ActiveDirectory
 )
 
 # Add access rules to existing 'msPKI-Enterprise-Oid' ACL
-Grant-ADObjectPermissions -Path $PkiEntOidPath -Rule $PkiEntOIDCreateDeleteRule -Principal $ACLSEecurityPrincipal
-Grant-ADObjectPermissions -Path $PkiEntOidPath -Rule $GenericFCRule -Principal $ACLSEecurityPrincipal
+Grant-ADObjectPermissions -Path $PkiEntOidPath -Rule $PkiEntOIDCreateDeleteRule -Principal $ACLSecurityPrincipal -AccessType "Create/Delete" -ObjectType "msPKI-Enterprise-Oid"
+Grant-ADObjectPermissions -Path $PkiEntOidPath -Rule $GenericFCRule -Principal $ACLSecurityPrincipal -AccessType "Full Control" -ObjectType "msPKI-Enterprise-Oid"
 
 # Assign Full Control and owner permissions to the delegated group for all existing 'pkiCertificateTemplate' objects
 foreach ($object in $pkiTemplates)
 {
-    Grant-ADObjectPermissions -Path $object.DistinguishedName -Rule $GenericFCRule -Principal $ACLSEcurityPrincipal
-    Grant-ADObjectPermissions -Path $object.DistinguishedName -Principal $ACLSEcurityPrincipal -SetOwner
+    $path = "AD:\" + $object.DistinguishedName
+    Grant-ADObjectPermissions -Path $path -Rule $GenericFCRule -Principal $ACLSecurityPrincipal -AccessType "Full Control" -ObjectType "pkiCertificateTemplate"
+    Grant-ADObjectPermissions -Path $path -Principal $ACLSecurityPrincipal -SetOwner -AccessType "Owner" -ObjectType "pkiCertificateTemplate"
 }
 
 # Assign Full Control and owner permissions to the delegated group for all existing 'msPKI-Enterprise-Oid' objects
 foreach ($object in $pkiEntOids)
 {
-    Grant-ADObjectPermissions -Path $object.DistinguishedName -Rule $GenericFCRule -Principal $ACLSEcurityPrincipal
-    Grant-ADObjectPermissions -Path $object.DistinguishedName -Principal $ACLSEcurityPrincipal -SetOwner
+    $path = "AD:\" + $object.DistinguishedName
+    Grant-ADObjectPermissions -Path $path -Rule $GenericFCRule -Principal $ACLSecurityPrincipal -AccessType "Full Control" -ObjectType "msPKI-Enterprise-Oid"
+}
+
+# Modify default permissions in the AD schema for the 'pkiCertificateTemplate' object class to automatically grant the delegated group Full Control and owner permissions for all future 'pkiCertificateTemplate' objects
+# Retrieve the current default security descriptor for the 'pkiCertificateTemplate' object class
+$CurrentSDDL = (Get-ADObject $pkiTempl -Properties defaultSecurityDescriptor).defaultSecurityDescriptor
+# Create a new security descriptor object with the current SDDL
+$NewSDDL = New-Object -TypeName Security.AccessControl.CommonSecurityDescriptor -ArgumentList $False,$true,$CurrentSDDL
+# Build ACE parameters for the new access rule to be added to the security descriptor
+$AccessType = [System.Security.AccessControl.AccessControlType]::Allow
+$AccessMask = [System.DirectoryServices.ActiveDirectoryRights]::GenericAll
+$InheritanceType = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::None
+$PropagationFlags = [System.Security.AccessControl.PropagationFlags]::None
+$Sid = $Group.SID.Value
+# Add a new access rule to the security descriptor for the delegated group with Full Control permissions for all future 'pkiCertificateTemplate' objects
+$NewSDDL.DiscretionaryAcl.AddAccess($AccessType, $SID, $AccessMask, $InheritanceType, $PropagationFlags)
+#Convert back to SDDL string
+$NewSDDLString = $NewSDDL.GetSddlForm('All')
+# Update the default security descriptor for the 'pkiCertificateTemplate' object class with the new SDDL string
+try
+{
+    Set-ADObject -Identity $pkiTempl -Replace @{defaultSecurityDescriptor=$NewSDDLString} -Server $DomainController
+    Write-LogFile -Message "Updated default security descriptor for 'pkiCertificateTemplate' object class with full access permissions for group '$($Group.SamAccountName)'."
+}
+
+catch
+{
+    Write-LogFile -Message "Failed to update default security descriptor for 'pkiCertificateTemplate' object class:." -errorInfo $_
+    Exit
 }

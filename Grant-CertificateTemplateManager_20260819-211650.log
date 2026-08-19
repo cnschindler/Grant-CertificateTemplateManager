@@ -1,0 +1,31 @@
+﻿19.08.2026 21:16:50 : Logging started
+19.08.2026 21:16:50 : INFO : Using domain controller 'DC01.vmm.lab' for Active Directory operations.
+19.08.2026 21:16:50 : INFO : Current domain is 'vmm.lab'.
+19.08.2026 21:16:50 : INFO : Enterprise Admins SID is 'S-1-5-21-1621008319-2234969215-636641058-519'.
+19.08.2026 21:16:50 : INFO : Current user is 'VMM\administrator'.
+19.08.2026 21:16:50 : INFO : Retrieved group 'DELEG_PKI-Template-Admin' with distinguished name 'CN=DELEG_PKI-Template-Admin,OU=Groups,OU=Accounts,DC=vmm,DC=lab'.
+19.08.2026 21:16:50 : INFO : Retrieved RootDSE information from domain controller 'DC01.vmm.lab'.
+19.08.2026 21:16:50 : INFO : Schema Naming Context is 'CN=Schema,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:50 : INFO : Configuration Naming Context is 'CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Retrieved 'pKICertificateTemplate' schemaGUID: '162 156 32 229 186 59 210 17 144 204 0 192 79 217 26 177'.
+19.08.2026 21:16:51 : INFO : Formatted 'pKICertificateTemplate' schemaGUID: 'e5209ca2-3bba-11d2-90cc-00c04fd91ab1'.
+19.08.2026 21:16:51 : INFO : Retrieved 'msPKI-Enterprise-Oid' schemaGUID: '92 216 207 55 25 103 216 74 143 158 134 120 186 98 117 99'.
+19.08.2026 21:16:51 : INFO : Formatted 'msPKI-Enterprise-Oid' schemaGUID: '37cfd85c-6719-4ad8-8f9e-8678ba627563'.
+19.08.2026 21:16:51 : INFO : Certificate Templates container path is 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : OID container path is 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Retrieved 40 certificate templates from 'Certificate Templates' container.
+19.08.2026 21:16:51 : INFO : Retrieved 26 OIDs from 'OID' container.
+19.08.2026 21:16:51 : INFO : Created ACL Security Principal for group 'DELEG_PKI-Template-Admin' in domain 'VMM'.
+19.08.2026 21:16:51 : INFO : Successfully retrieved ACL for 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Adding Create/Delete to pkiCertificateTemplate objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully added Create/Delete to pkiCertificateTemplate objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully retrieved ACL for 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Adding Full Control to pkiCertificateTemplate objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully added Full Control to pkiCertificateTemplate objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully retrieved ACL for 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Adding Create/Delete to msPKI-Enterprise-Oid objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully added Create/Delete to msPKI-Enterprise-Oid objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully retrieved ACL for 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Adding Full Control to msPKI-Enterprise-Oid objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : INFO : Successfully added Full Control to msPKI-Enterprise-Oid objects access rule for 'VMM\DELEG_PKI-Template-Admin' to 'AD:\CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'.
+19.08.2026 21:16:51 : ERROR : Failed to retrieve ACL for 'CN=Administrator,CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab'. The error is: Cannot find path 'CN=Administrator,CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=vmm,DC=lab' because it does not exist.
