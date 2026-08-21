@@ -6,7 +6,8 @@
 Param
 (
     [Parameter(Mandatory=$true)]
-    [string]$GroupName
+    [string]$GroupName,
+    [switch]$ModifySchemaDefaultPermission
 )
 
 #
@@ -193,23 +194,52 @@ Write-LogFile -Message "Using domain controller '$DomainController' for Active D
 $Domain = Get-ADDomain -server $DomainController
 Write-LogFile -Message "Current domain is '$($Domain.DNSRoot)'."
 
-#
-# Check if the current user is a member of the 'Enterprise Admins' group
-#
-# Build SID for Enterprise Admins group
-$EnterpriseAdminsSID = $Domain.DomainSID.Value + "-519"
-Write-LogFile -Message "Enterprise Admins SID is '$EnterpriseAdminsSID'."
-# Get current user principal
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-Write-LogFile -Message "Current user is '$($principal.Identity.Name)'."
-
-# Check if the current user is a member of the 'Enterprise Admins' group
-if ($principal.Identities.Groups -notcontains $EnterpriseAdminsSID)
+function Test-IsActiveDirectoryAdmin
 {
-    Write-LogFile -Message "Current user is not a member of the 'Enterprise Admins' group."
-    Write-LogFile -Message "This script must be run with a user account that is a member in the 'Enterprise Admins' group."
-    Exit
+    [cmdletbinding()]
+    Param
+    (
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("EnterpriseAdmin", "SchemaAdmin", "DomainAdmin")]
+        [string]$Role
+    )
+
+    switch ($Role)
+    {
+        "EnterpriseAdmin" {
+            $SID = $Domain.DomainSID.Value + "-519"
+            Write-LogFile -Message "Enterprise Admins SID is '$SID'."
+        }
+        "SchemaAdmin" {
+            $SID = $Domain.DomainSID.Value + "-518"
+            Write-LogFile -Message "Schema Admins SID is '$SID'."
+        }
+        "DomainAdmin" {
+            $SID = $Domain.DomainSID.Value + "-512"
+            Write-LogFile -Message "Domain Admins SID is '$SID'."
+        }
+    }
+
+    # Get current user principal
+    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    Write-LogFile -Message "Current user is '$($principal.Identity.Name)'."
+
+    if ($principal.Identities.Groups -notcontains $SID)
+    {
+        Write-LogFile -Message "Current user is not a member of the '$Role' group."
+        Write-LogFile -Message "This script must be run with a user account that is a member in the '$Role' group."
+        Exit
+    }
+
+    Else
+    {
+        Write-LogFile -Message "Current user is a member of the '$Role' group. Continuing with script execution."
+    }
+
 }
+
+# Check if the current user is a member of the Enterprise Admins group
+Test-IsActiveDirectoryAdmin -Role "EnterpriseAdmin"
 
 # Retrieve the delegated group
 $Group = Get-ADGroup $GroupName -server $DomainController
@@ -315,30 +345,37 @@ foreach ($object in $pkiEntOids)
     Grant-ADObjectPermissions -Path $path -Rule $GenericFCRule -Principal $ACLSecurityPrincipal -AccessType "Full Control" -ObjectType "msPKI-Enterprise-Oid"
 }
 
-# Modify default permissions in the AD schema for the 'pkiCertificateTemplate' object class to automatically grant the delegated group Full Control and owner permissions for all future 'pkiCertificateTemplate' objects
-# Retrieve the current default security descriptor for the 'pkiCertificateTemplate' object class
-$CurrentSDDL = (Get-ADObject $pkiTempl -Properties defaultSecurityDescriptor).defaultSecurityDescriptor
-# Create a new security descriptor object with the current SDDL
-$NewSDDL = New-Object -TypeName Security.AccessControl.CommonSecurityDescriptor -ArgumentList $False,$true,$CurrentSDDL
-# Build ACE parameters for the new access rule to be added to the security descriptor
-$AccessType = [System.Security.AccessControl.AccessControlType]::Allow
-$AccessMask = [System.DirectoryServices.ActiveDirectoryRights]::GenericAll
-$InheritanceType = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::None
-$PropagationFlags = [System.Security.AccessControl.PropagationFlags]::None
-$Sid = $Group.SID.Value
-# Add a new access rule to the security descriptor for the delegated group with Full Control permissions for all future 'pkiCertificateTemplate' objects
-$NewSDDL.DiscretionaryAcl.AddAccess($AccessType, $SID, $AccessMask, $InheritanceType, $PropagationFlags)
-#Convert back to SDDL string
-$NewSDDLString = $NewSDDL.GetSddlForm('All')
-# Update the default security descriptor for the 'pkiCertificateTemplate' object class with the new SDDL string
-try
+if ($ModifySchemaDefaultPermission)
 {
-    Set-ADObject -Identity $pkiTempl -Replace @{defaultSecurityDescriptor=$NewSDDLString} -Server $DomainController
-    Write-LogFile -Message "Updated default security descriptor for 'pkiCertificateTemplate' object class with full access permissions for group '$($Group.SamAccountName)'."
-}
+    # Check if the current user is a member of the Schema Admins group
+    Test-IsActiveDirectoryAdmin -Role "SchemaAdmin"
 
-catch
-{
-    Write-LogFile -Message "Failed to update default security descriptor for 'pkiCertificateTemplate' object class:." -errorInfo $_
-    Exit
+    # Modify default permissions in the AD schema for the 'pkiCertificateTemplate' object class to automatically grant the delegated group Full Control and owner permissions for all future 'pkiCertificateTemplate' objects
+    # Retrieve the current default security descriptor for the 'pkiCertificateTemplate' object class
+    $CurrentSDDL = (Get-ADObject $pkiTempl -Properties defaultSecurityDescriptor).defaultSecurityDescriptor
+    # Create a new security descriptor object with the current SDDL
+    $NewSDDL = New-Object -TypeName Security.AccessControl.CommonSecurityDescriptor -ArgumentList $False,$true,$CurrentSDDL
+    # Build ACE parameters for the new access rule to be added to the security descriptor
+    $AccessType = [System.Security.AccessControl.AccessControlType]::Allow
+    $AccessMask = [System.DirectoryServices.ActiveDirectoryRights]::GenericAll
+    $InheritanceType = [System.DirectoryServices.ActiveDirectorySecurityInheritance]::None
+    $PropagationFlags = [System.Security.AccessControl.PropagationFlags]::None
+    $Sid = $Group.SID.Value
+    # Add a new access rule to the security descriptor for the delegated group with Full Control permissions for all future 'pkiCertificateTemplate' objects
+    $NewSDDL.DiscretionaryAcl.AddAccess($AccessType, $SID, $AccessMask, $InheritanceType, $PropagationFlags)
+    #Convert back to SDDL string
+    $NewSDDLString = $NewSDDL.GetSddlForm('All')
+
+    # Update the default security descriptor for the 'pkiCertificateTemplate' object class with the new SDDL string
+    try
+    {
+        Set-ADObject -Identity $pkiTempl -Replace @{defaultSecurityDescriptor=$NewSDDLString} -Server $DomainController
+        Write-LogFile -Message "Added full access permissions for group '$($Group.SamAccountName)' to default security descriptor for 'pkiCertificateTemplate' object class."
+    }
+
+    catch
+    {
+        Write-LogFile -Message "Failed to add full access permissions for group '$($Group.SamAccountName)' to default security descriptor for 'pkiCertificateTemplate' object class:." -errorInfo $_
+        Exit
+    }
 }
