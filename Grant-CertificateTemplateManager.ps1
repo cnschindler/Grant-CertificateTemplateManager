@@ -218,11 +218,7 @@ function Test-IsActiveDirectoryAdmin
         }
     }
 
-    # Get current user principal
-    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-    Write-LogFile -Message "Current user is '$($principal.Identity.Name)'."
-
-    if ($principal.Identities.Groups -notcontains $SID)
+    if ($Script:principal.Identities.Groups -notcontains $SID)
     {
         Write-LogFile -Message "Current user is not a member of the '$Role' group."
         Write-LogFile -Message "This script must be run with a user account that is a member in the '$Role' group."
@@ -235,6 +231,11 @@ function Test-IsActiveDirectoryAdmin
     }
 
 }
+
+# Get current user principal
+$Script:principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+Write-LogFile -Message "Current user is '$($Script:principal.Identity.Name)'."
+
 
 # Check if the current user is a member of the Enterprise Admins group
 Test-IsActiveDirectoryAdmin -Role "EnterpriseAdmin"
