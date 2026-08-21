@@ -116,8 +116,6 @@ if (-not (Get-Module -Name ActiveDirectory -ErrorAction SilentlyContinue))
     }
 }
 
-Get-PSDrive
-Get-Module
 function Grant-ADObjectPermissions
 {
     param (
